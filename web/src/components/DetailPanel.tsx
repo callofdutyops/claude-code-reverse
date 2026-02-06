@@ -4,6 +4,7 @@ import { X, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { RequestResponsePair, TextContent, ToolUseContent, ToolResultContent, ContentBlock, SystemPrompt } from '../types';
 import { JsonViewer } from './JsonViewer';
+import { CopyRichTextButton } from './CopyRichTextButton';
 
 interface DetailPanelProps {
   pair: RequestResponsePair | null;
@@ -14,6 +15,14 @@ function extractSystemPromptText(system: SystemPrompt[] | undefined): string {
   if (!system) return '';
   return system
     .filter((block) => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n\n');
+}
+
+function extractMessageText(content: string | ContentBlock[]): string {
+  if (typeof content === 'string') return content;
+  return content
+    .filter((block): block is TextContent => block.type === 'text')
     .map((block) => block.text)
     .join('\n\n');
 }
@@ -218,7 +227,8 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ pair, onClose }) => {
                 </button>
                 {systemExpanded && (
                   <div className="mt-2">
-                    <div className="flex justify-end mb-2">
+                    <div className="flex justify-end items-center gap-1 mb-2">
+                      <CopyRichTextButton markdownText={systemPromptText} />
                       <ViewToggle mode={conversationSystemViewMode} onChange={setConversationSystemViewMode} />
                     </div>
                     {conversationSystemViewMode === 'preview' ? (
@@ -243,11 +253,16 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ pair, onClose }) => {
               </div>
               {request.messages.map((msg, i) => (
                 <div key={i} className="mb-2 p-3 rounded-md border border-border bg-card">
-                  <div className={cn(
-                    'text-xs font-medium uppercase tracking-wide mb-1',
-                    msg.role === 'user' ? 'text-blue-400' : 'text-violet-400'
-                  )}>
-                    {msg.role}
+                  <div className="flex items-center justify-between mb-1">
+                    <div className={cn(
+                      'text-xs font-medium uppercase tracking-wide',
+                      msg.role === 'user' ? 'text-blue-400' : 'text-violet-400'
+                    )}>
+                      {msg.role}
+                    </div>
+                    {msg.role === 'user' && (
+                      <CopyRichTextButton markdownText={extractMessageText(msg.content)} size={12} />
+                    )}
                   </div>
                   {formatContent(msg.content, messagesViewMode === 'preview')}
                 </div>
@@ -298,7 +313,10 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ pair, onClose }) => {
                   {systemPromptText.split(/\s+/).filter(Boolean).length.toLocaleString()} words / {systemPromptText.length.toLocaleString()} chars
                 </span>
               </div>
-              <ViewToggle mode={systemViewMode} onChange={setSystemViewMode} />
+              <div className="flex items-center gap-1">
+                <CopyRichTextButton markdownText={systemPromptText} />
+                <ViewToggle mode={systemViewMode} onChange={setSystemViewMode} />
+              </div>
             </div>
             {systemPromptText ? (
               systemViewMode === 'preview' ? (
