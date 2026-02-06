@@ -1,10 +1,23 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { Activity, Zap, MessageSquare, Wrench, Trash2 } from 'lucide-react';
 import { Timeline } from './components/Timeline';
 import { TokenChart } from './components/TokenChart';
 import { ToolAnalysis } from './components/ToolAnalysis';
 import { SystemPromptView } from './components/SystemPromptView';
 import { DetailPanel } from './components/DetailPanel';
 import type { RequestResponsePair } from './types';
+
+function StatItem({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-secondary/50">
+      <div className="text-muted-foreground">{icon}</div>
+      <div>
+        <div className="text-lg font-semibold font-mono">{value}</div>
+        <div className="text-xs text-muted-foreground">{label}</div>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const [pairs, setPairs] = useState<RequestResponsePair[]>([]);
@@ -27,7 +40,6 @@ function App() {
   useEffect(() => {
     fetchData();
 
-    // Set up WebSocket for real-time updates
     const ws = new WebSocket(`ws://${window.location.hostname}:3456`);
 
     ws.onmessage = (event) => {
@@ -86,184 +98,128 @@ function App() {
     }
   };
 
-
   if (loading) {
     return (
-      <div className="app">
-        <div className="loading">Loading captured data...</div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-muted-foreground font-mono text-sm">Loading captured data...</div>
       </div>
     );
   }
 
+  const tabs = [
+    { id: 'timeline' as const, label: 'Timeline' },
+    { id: 'system' as const, label: 'System Prompt' },
+    { id: 'tokens' as const, label: 'Token Usage' },
+    { id: 'tools' as const, label: 'Tool Analysis' },
+  ];
+
   return (
-    <div className="app">
-      <header className="header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <h1>Claude Code Reverse</h1>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.25rem 0.75rem',
-            background: 'rgba(57, 255, 20, 0.1)',
-            border: '1px solid rgba(57, 255, 20, 0.3)',
-            borderRadius: '20px',
-          }}>
-            <div style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: '#39ff14',
-              boxShadow: '0 0 10px #39ff14, 0 0 20px rgba(57, 255, 20, 0.5)',
-              animation: 'livePulse 2s infinite',
-            }} />
-            <span style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.7rem',
-              color: '#39ff14',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-            }}>
-              Live
-            </span>
+    <div className="min-h-screen">
+      {/* Header */}
+      <header className="border-b border-border px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold tracking-tight">Claude Code Reverse</h1>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-medium text-emerald-500">Live</span>
           </div>
         </div>
-        <div className="header-stats">
-          <div className="stat">
-            <div className="stat-value">{stats.requests}</div>
-            <div className="stat-label">Requests</div>
-          </div>
-          <div className="stat">
-            <div className="stat-value">{(stats.totalInput / 1000).toFixed(1)}K</div>
-            <div className="stat-label">Input Tokens</div>
-          </div>
-          <div className="stat">
-            <div className="stat-value">{(stats.totalOutput / 1000).toFixed(1)}K</div>
-            <div className="stat-label">Output Tokens</div>
-          </div>
-          <div className="stat">
-            <div className="stat-value">{stats.totalTools}</div>
-            <div className="stat-label">Tool Calls</div>
-          </div>
+
+        <div className="flex items-center gap-3">
+          <StatItem
+            icon={<Activity size={16} />}
+            value={String(stats.requests)}
+            label="Requests"
+          />
+          <StatItem
+            icon={<Zap size={16} />}
+            value={`${(stats.totalInput / 1000).toFixed(1)}K`}
+            label="Input Tokens"
+          />
+          <StatItem
+            icon={<MessageSquare size={16} />}
+            value={`${(stats.totalOutput / 1000).toFixed(1)}K`}
+            label="Output Tokens"
+          />
+          <StatItem
+            icon={<Wrench size={16} />}
+            value={String(stats.totalTools)}
+            label="Tool Calls"
+          />
         </div>
+
         <button
           onClick={handleClear}
-          style={{
-            fontFamily: 'var(--font-display)',
-            background: 'rgba(255, 107, 53, 0.1)',
-            border: '1px solid rgba(255, 107, 53, 0.5)',
-            color: '#ff6b35',
-            padding: '0.5rem 1rem',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-            transition: 'all 0.3s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 107, 53, 0.2)';
-            e.currentTarget.style.borderColor = '#ff6b35';
-            e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 107, 53, 0.3)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 107, 53, 0.1)';
-            e.currentTarget.style.borderColor = 'rgba(255, 107, 53, 0.5)';
-            e.currentTarget.style.boxShadow = 'none';
-          }}
+          className="flex items-center gap-2 px-3 py-2 text-sm rounded-md border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
         >
-          Clear Data
+          <Trash2 size={14} />
+          Clear
         </button>
       </header>
 
-      <div style={{
-        padding: '0.5rem 1rem',
-        borderBottom: '1px solid #2a2a35',
-        background: 'linear-gradient(180deg, rgba(18, 18, 26, 0.9) 0%, rgba(13, 13, 20, 0.9) 100%)',
-      }}>
-        <div className="tabs">
-          <button
-            className={`tab ${activeTab === 'timeline' ? 'active' : ''}`}
-            onClick={() => setActiveTab('timeline')}
-          >
-            Timeline
-          </button>
-          <button
-            className={`tab ${activeTab === 'system' ? 'active' : ''}`}
-            onClick={() => setActiveTab('system')}
-          >
-            System Prompt
-          </button>
-          <button
-            className={`tab ${activeTab === 'tokens' ? 'active' : ''}`}
-            onClick={() => setActiveTab('tokens')}
-          >
-            Token Usage
-          </button>
-          <button
-            className={`tab ${activeTab === 'tools' ? 'active' : ''}`}
-            onClick={() => setActiveTab('tools')}
-          >
-            Tool Analysis
-          </button>
-        </div>
+      {/* Tabs */}
+      <div className="border-b border-border px-6">
+        <nav className="flex gap-0">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
+                activeTab === tab.id
+                  ? 'border-foreground text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
       </div>
 
-      <main style={{ padding: '1rem' }}>
+      {/* Content */}
+      <main className="p-6">
         {activeTab === 'timeline' && (
-          <div className="panel panel-full">
-            <div className="panel-header">
-              <span>API Call Timeline</span>
-              <span style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '0.75rem',
-                color: '#00fff5',
-                padding: '0.25rem 0.5rem',
-                background: 'rgba(0, 255, 245, 0.1)',
-                borderRadius: '4px',
-                border: '1px solid rgba(0, 255, 245, 0.2)',
-              }}>
+          <div className="rounded-lg border border-border">
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+              <span className="text-sm font-medium">API Call Timeline</span>
+              <span className="text-xs text-muted-foreground font-mono bg-secondary px-2 py-0.5 rounded">
                 {pairs.length} calls
               </span>
             </div>
-            <div className="panel-content" style={{ maxHeight: 'calc(100vh - 250px)' }}>
-              <Timeline
-                pairs={pairs}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-              />
+            <div className="p-4 max-h-[calc(100vh-250px)] overflow-y-auto">
+              <Timeline pairs={pairs} selectedId={selectedId} onSelect={setSelectedId} />
             </div>
           </div>
         )}
 
         {activeTab === 'system' && (
-          <div className="panel panel-full">
-            <div className="panel-header">
-              <span>System Prompt Analysis</span>
+          <div className="rounded-lg border border-border">
+            <div className="px-4 py-3 border-b border-border">
+              <span className="text-sm font-medium">System Prompt Analysis</span>
             </div>
-            <div className="panel-content" style={{ maxHeight: 'calc(100vh - 250px)' }}>
+            <div className="p-4 max-h-[calc(100vh-250px)] overflow-y-auto">
               <SystemPromptView pairs={pairs} />
             </div>
           </div>
         )}
 
         {activeTab === 'tokens' && (
-          <div className="panel panel-full">
-            <div className="panel-header">
-              <span>Token Usage Statistics</span>
+          <div className="rounded-lg border border-border">
+            <div className="px-4 py-3 border-b border-border">
+              <span className="text-sm font-medium">Token Usage Statistics</span>
             </div>
-            <div className="panel-content" style={{ maxHeight: 'calc(100vh - 250px)' }}>
+            <div className="p-4 max-h-[calc(100vh-250px)] overflow-y-auto">
               <TokenChart pairs={pairs} />
             </div>
           </div>
         )}
 
         {activeTab === 'tools' && (
-          <div className="panel panel-full">
-            <div className="panel-header">
-              <span>Tool Usage Analysis</span>
+          <div className="rounded-lg border border-border">
+            <div className="px-4 py-3 border-b border-border">
+              <span className="text-sm font-medium">Tool Usage Analysis</span>
             </div>
-            <div className="panel-content" style={{ maxHeight: 'calc(100vh - 250px)' }}>
+            <div className="p-4 max-h-[calc(100vh-250px)] overflow-y-auto">
               <ToolAnalysis pairs={pairs} />
             </div>
           </div>
@@ -271,10 +227,7 @@ function App() {
       </main>
 
       {selectedId && (
-        <DetailPanel
-          pair={selectedPair}
-          onClose={() => setSelectedId(null)}
-        />
+        <DetailPanel pair={selectedPair} onClose={() => setSelectedId(null)} />
       )}
     </div>
   );

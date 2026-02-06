@@ -24,9 +24,7 @@ interface ToolStat {
 export const ToolAnalysis: React.FC<ToolAnalysisProps> = ({ pairs }) => {
   const toolStats = useMemo(() => {
     const stats = new Map<string, { count: number; errors: number }>();
-
-    // Collect tool uses from responses
-    const toolUses = new Map<string, string>(); // tool_use_id -> name
+    const toolUses = new Map<string, string>();
 
     for (const pair of pairs) {
       if (!pair.response) continue;
@@ -35,14 +33,12 @@ export const ToolAnalysis: React.FC<ToolAnalysisProps> = ({ pairs }) => {
         if (block.type === 'tool_use') {
           const toolUse = block as ToolUseContent;
           toolUses.set(toolUse.id, toolUse.name);
-
           const existing = stats.get(toolUse.name) || { count: 0, errors: 0 };
           existing.count++;
           stats.set(toolUse.name, existing);
         }
       }
 
-      // Check for tool results in messages to count errors
       for (const message of pair.request.messages) {
         if (message.role === 'user' && Array.isArray(message.content)) {
           for (const block of message.content) {
@@ -51,9 +47,7 @@ export const ToolAnalysis: React.FC<ToolAnalysisProps> = ({ pairs }) => {
               const toolName = toolUses.get(toolResult.tool_use_id);
               if (toolName && toolResult.is_error) {
                 const existing = stats.get(toolName);
-                if (existing) {
-                  existing.errors++;
-                }
+                if (existing) existing.errors++;
               }
             }
           }
@@ -61,7 +55,6 @@ export const ToolAnalysis: React.FC<ToolAnalysisProps> = ({ pairs }) => {
       }
     }
 
-    // Convert to array and sort by count
     const result: ToolStat[] = [];
     for (const [name, data] of stats) {
       result.push({
@@ -76,7 +69,7 @@ export const ToolAnalysis: React.FC<ToolAnalysisProps> = ({ pairs }) => {
   }, [pairs]);
 
   if (toolStats.length === 0) {
-    return <div className="empty">No tool calls recorded</div>;
+    return <div className="text-center py-8 text-muted-foreground text-sm">No tool calls recorded</div>;
   }
 
   const chartData = toolStats.slice(0, 10).map((stat) => ({
@@ -86,95 +79,54 @@ export const ToolAnalysis: React.FC<ToolAnalysisProps> = ({ pairs }) => {
     errors: stat.errors,
   }));
 
+  const tooltipStyle = {
+    background: '#18181b',
+    border: '1px solid #27272a',
+    borderRadius: '6px',
+    fontSize: '0.75rem',
+  };
+
   return (
     <div>
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={chartData} layout="vertical">
-          <defs>
-            <linearGradient id="successGradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#39ff14" stopOpacity={0.8} />
-              <stop offset="100%" stopColor="#39ff14" stopOpacity={1} />
-            </linearGradient>
-            <linearGradient id="errorGradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#ff6b35" stopOpacity={0.8} />
-              <stop offset="100%" stopColor="#ff6b35" stopOpacity={1} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a35" />
-          <XAxis
-            type="number"
-            stroke="#555"
-            fontSize={11}
-            fontFamily="var(--font-display)"
-          />
+          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+          <XAxis type="number" stroke="#71717a" fontSize={11} />
           <YAxis
             type="category"
             dataKey="name"
-            stroke="#555"
+            stroke="#71717a"
             fontSize={10}
             width={120}
-            fontFamily="var(--font-display)"
             tickFormatter={(v) => v}
           />
           <Tooltip
-            contentStyle={{
-              background: 'rgba(10, 10, 15, 0.95)',
-              border: '1px solid #00fff5',
-              borderRadius: '6px',
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.75rem',
-              boxShadow: '0 0 15px rgba(0, 255, 245, 0.3)',
-            }}
+            contentStyle={tooltipStyle}
             formatter={(value: number, name: string) => [
               value,
               name === 'success' ? 'Success' : 'Errors',
             ]}
             labelFormatter={(label) => chartData.find((d) => d.name === label)?.fullName || label}
-            labelStyle={{ color: '#00fff5' }}
+            labelStyle={{ color: '#a1a1aa' }}
           />
-          <Bar
-            dataKey="success"
-            fill="url(#successGradient)"
-            stackId="a"
-            style={{ filter: 'drop-shadow(0 0 4px rgba(57, 255, 20, 0.5))' }}
-          />
-          <Bar
-            dataKey="errors"
-            fill="url(#errorGradient)"
-            stackId="a"
-            style={{ filter: 'drop-shadow(0 0 4px rgba(255, 107, 53, 0.5))' }}
-          />
+          <Bar dataKey="success" fill="#10b981" stackId="a" />
+          <Bar dataKey="errors" fill="#ef4444" stackId="a" />
         </BarChart>
       </ResponsiveContainer>
 
-      <div className="tool-list" style={{ marginTop: '1rem' }}>
+      <div className="flex flex-col gap-1 mt-4">
         {toolStats.map((stat) => (
-          <div key={stat.name} className="tool-item">
-            <span className="tool-name">{stat.name}</span>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <span style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '0.7rem',
-                padding: '0.15rem 0.5rem',
-                borderRadius: '4px',
-                background: 'rgba(0, 255, 245, 0.1)',
-                border: '1px solid rgba(0, 255, 245, 0.3)',
-                color: '#00fff5',
-                fontWeight: 'bold',
-              }}>
+          <div
+            key={stat.name}
+            className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-accent transition-colors"
+          >
+            <span className="text-sm font-mono">{stat.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-medium px-2 py-0.5 rounded bg-secondary text-foreground">
                 {stat.count}
               </span>
               {stat.errors > 0 && (
-                <span style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.7rem',
-                  padding: '0.15rem 0.5rem',
-                  borderRadius: '4px',
-                  background: 'rgba(255, 107, 53, 0.1)',
-                  border: '1px solid rgba(255, 107, 53, 0.3)',
-                  color: '#ff6b35',
-                  fontWeight: 'bold',
-                }}>
+                <span className="text-xs font-mono font-medium px-2 py-0.5 rounded bg-destructive/10 text-destructive">
                   {stat.errors} err
                 </span>
               )}

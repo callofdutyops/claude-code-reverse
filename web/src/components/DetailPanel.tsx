@@ -1,117 +1,9 @@
 import { useState } from 'react';
 import Markdown from 'react-markdown';
+import { X, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { RequestResponsePair, TextContent, ToolUseContent, ToolResultContent, ContentBlock, SystemPrompt } from '../types';
 import { JsonViewer } from './JsonViewer';
-
-// Cyberpunk Markdown styles for system prompt
-const markdownStyles = `
-  .markdown-preview {
-    font-family: var(--font-body);
-    font-size: 0.875rem;
-    line-height: 1.6;
-    color: #888;
-  }
-  .markdown-preview h1 {
-    font-family: var(--font-display);
-    font-size: 1.5rem;
-    font-weight: bold;
-    margin: 1.5rem 0 0.75rem 0;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid #2a2a35;
-    color: #00fff5;
-    text-shadow: 0 0 10px rgba(0, 255, 245, 0.3);
-  }
-  .markdown-preview h2 {
-    font-family: var(--font-display);
-    font-size: 1.25rem;
-    font-weight: bold;
-    margin: 1.25rem 0 0.5rem 0;
-    color: #ff00ff;
-    text-shadow: 0 0 10px rgba(255, 0, 255, 0.3);
-  }
-  .markdown-preview h3 {
-    font-family: var(--font-display);
-    font-size: 1.1rem;
-    font-weight: bold;
-    margin: 1rem 0 0.5rem 0;
-    color: #39ff14;
-    text-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
-  }
-  .markdown-preview h4, .markdown-preview h5, .markdown-preview h6 {
-    font-family: var(--font-display);
-    font-size: 1rem;
-    font-weight: bold;
-    margin: 0.75rem 0 0.5rem 0;
-    color: #ffff00;
-  }
-  .markdown-preview p {
-    margin: 0.5rem 0;
-  }
-  .markdown-preview ul, .markdown-preview ol {
-    margin: 0.5rem 0;
-    padding-left: 1.5rem;
-  }
-  .markdown-preview li {
-    margin: 0.25rem 0;
-  }
-  .markdown-preview code {
-    background: rgba(0, 255, 245, 0.1);
-    border: 1px solid rgba(0, 255, 245, 0.2);
-    padding: 0.125rem 0.375rem;
-    border-radius: 4px;
-    font-family: var(--font-display);
-    font-size: 0.8rem;
-    color: #39ff14;
-  }
-  .markdown-preview pre {
-    background: rgba(10, 10, 15, 0.8);
-    border: 1px solid #2a2a35;
-    padding: 0.75rem;
-    border-radius: 6px;
-    overflow-x: auto;
-    margin: 0.5rem 0;
-  }
-  .markdown-preview pre code {
-    background: none;
-    border: none;
-    padding: 0;
-  }
-  .markdown-preview blockquote {
-    border-left: 3px solid #ff00ff;
-    padding-left: 1rem;
-    margin: 0.5rem 0;
-    color: #666;
-  }
-  .markdown-preview strong {
-    color: #e8e8e8;
-  }
-  .markdown-preview a {
-    color: #00d4ff;
-  }
-  .markdown-preview hr {
-    border: none;
-    border-top: 1px solid #2a2a35;
-    margin: 1rem 0;
-  }
-  .markdown-preview table {
-    border-collapse: collapse;
-    margin: 0.5rem 0;
-    width: 100%;
-  }
-  .markdown-preview th, .markdown-preview td {
-    border: 1px solid #2a2a35;
-    padding: 0.5rem;
-    text-align: left;
-  }
-  .markdown-preview th {
-    background: rgba(0, 255, 245, 0.1);
-    color: #00fff5;
-    font-family: var(--font-display);
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-`;
 
 interface DetailPanelProps {
   pair: RequestResponsePair | null;
@@ -126,55 +18,64 @@ function extractSystemPromptText(system: SystemPrompt[] | undefined): string {
     .join('\n\n');
 }
 
-function getAgentType(system: SystemPrompt[] | undefined): { label: string; color: string; glow: string } {
+function getAgentLabel(system: SystemPrompt[] | undefined): string {
   const text = extractSystemPromptText(system);
   const length = text.length;
 
-  if (!text) {
-    return { label: 'Unknown', color: '#555', glow: 'none' };
-  }
+  if (!text) return 'Unknown';
+  if (text.includes('isNewTopic') || text.includes('new conversation topic')) return 'Title Generator';
+  if (text.includes('You are an exploration agent') || text.includes('exploring codebases')) return 'Explore Agent';
+  if (text.includes('You are a planning agent') || text.includes('planning the implementation')) return 'Plan Agent';
+  if (text.includes('code review') || text.includes('Code review')) return 'Code Review Agent';
+  if (text.includes('Bash agent') || text.includes('bash commands')) return 'Bash Agent';
+  if (length < 15000 && !text.includes('You are Claude Code, Anthropic\'s official CLI')) return 'Sub-agent';
+  if (text.includes('Claude Code, Anthropic\'s official CLI') && length > 20000) return 'Main Agent';
+  if (length < 2000) return 'Short Prompt';
+  return 'Agent';
+}
 
-  if (text.includes('isNewTopic') || text.includes('new conversation topic')) {
-    return { label: 'Title Generator', color: '#bf00ff', glow: '0 0 10px rgba(191, 0, 255, 0.5)' };
-  }
-  if (text.includes('You are an exploration agent') || text.includes('exploring codebases')) {
-    return { label: 'Explore Agent', color: '#00d4ff', glow: '0 0 10px rgba(0, 212, 255, 0.5)' };
-  }
-  if (text.includes('You are a planning agent') || text.includes('planning the implementation')) {
-    return { label: 'Plan Agent', color: '#ffff00', glow: '0 0 10px rgba(255, 255, 0, 0.5)' };
-  }
-  if (text.includes('code review') || text.includes('Code review')) {
-    return { label: 'Code Review Agent', color: '#39ff14', glow: '0 0 10px rgba(57, 255, 20, 0.5)' };
-  }
-  if (text.includes('Bash agent') || text.includes('bash commands')) {
-    return { label: 'Bash Agent', color: '#ff6b35', glow: '0 0 10px rgba(255, 107, 53, 0.5)' };
-  }
-  if (length < 15000 && !text.includes('You are Claude Code, Anthropic\'s official CLI')) {
-    return { label: 'Sub-agent', color: '#ff00ff', glow: '0 0 10px rgba(255, 0, 255, 0.5)' };
-  }
-  if (text.includes('Claude Code, Anthropic\'s official CLI') && length > 20000) {
-    return { label: 'Main Agent', color: '#00fff5', glow: '0 0 10px rgba(0, 255, 245, 0.5)' };
-  }
-  if (length < 2000) {
-    return { label: 'Short Prompt', color: '#666', glow: 'none' };
-  }
-  return { label: 'Agent', color: '#00d4ff', glow: '0 0 10px rgba(0, 212, 255, 0.5)' };
+function ViewToggle({ mode, onChange }: { mode: 'preview' | 'raw'; onChange: (m: 'preview' | 'raw') => void }) {
+  return (
+    <div className="flex rounded-md bg-secondary p-0.5">
+      <button
+        onClick={(e) => { e.stopPropagation(); onChange('preview'); }}
+        className={cn(
+          'px-2.5 py-0.5 text-xs rounded cursor-pointer transition-colors',
+          mode === 'preview' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
+        )}
+      >
+        Preview
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); onChange('raw'); }}
+        className={cn(
+          'px-2.5 py-0.5 text-xs rounded cursor-pointer transition-colors',
+          mode === 'raw' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
+        )}
+      >
+        Raw
+      </button>
+    </div>
+  );
+}
+
+function TokenCard({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="p-3 rounded-lg border border-border bg-card">
+      <div className={cn('text-xl font-semibold font-mono', color)}>{value}</div>
+      <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+    </div>
+  );
 }
 
 function formatContent(content: string | ContentBlock[], useMarkdown: boolean = true): React.ReactNode {
   if (typeof content === 'string') {
     return useMarkdown ? (
-      <div className="message-content markdown-preview">
+      <div className="markdown-preview text-sm">
         <Markdown>{content}</Markdown>
       </div>
     ) : (
-      <div className="message-content" style={{
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        fontFamily: 'var(--font-display)',
-        fontSize: '0.75rem',
-        color: '#888',
-      }}>
+      <div className="whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
         {content}
       </div>
     );
@@ -184,17 +85,11 @@ function formatContent(content: string | ContentBlock[], useMarkdown: boolean = 
     if (block.type === 'text') {
       const textBlock = block as TextContent;
       return useMarkdown ? (
-        <div key={i} className="message-content markdown-preview">
+        <div key={i} className="markdown-preview text-sm">
           <Markdown>{textBlock.text}</Markdown>
         </div>
       ) : (
-        <div key={i} className="message-content" style={{
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          fontFamily: 'var(--font-display)',
-          fontSize: '0.75rem',
-          color: '#888',
-        }}>
+        <div key={i} className="whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
           {textBlock.text}
         </div>
       );
@@ -202,9 +97,9 @@ function formatContent(content: string | ContentBlock[], useMarkdown: boolean = 
     if (block.type === 'tool_use') {
       const toolBlock = block as ToolUseContent;
       return (
-        <div key={i} className="tool-call">
-          <div className="tool-call-name">Tool: {toolBlock.name}</div>
-          <div className="tool-call-input">
+        <div key={i} className="my-2 p-3 rounded-md bg-secondary border-l-2 border-blue-500">
+          <div className="text-sm font-mono text-foreground">Tool: {toolBlock.name}</div>
+          <div className="font-mono text-xs text-muted-foreground mt-1">
             {JSON.stringify(toolBlock.input, null, 2).slice(0, 500)}
           </div>
         </div>
@@ -216,19 +111,20 @@ function formatContent(content: string | ContentBlock[], useMarkdown: boolean = 
         ? resultBlock.content
         : resultBlock.content.map((c) => c.text || '').join('\n');
       return (
-        <div key={i} className="tool-call" style={{
-          borderColor: resultBlock.is_error ? '#ff6b35' : '#39ff14',
-        }}>
-          <div style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: '0.7rem',
-            color: resultBlock.is_error ? '#ff6b35' : '#39ff14',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}>
+        <div
+          key={i}
+          className={cn(
+            'my-2 p-3 rounded-md bg-secondary border-l-2',
+            resultBlock.is_error ? 'border-destructive' : 'border-emerald-500'
+          )}
+        >
+          <div className={cn(
+            'text-xs font-medium uppercase tracking-wide',
+            resultBlock.is_error ? 'text-destructive' : 'text-emerald-400'
+          )}>
             Tool Result {resultBlock.is_error && '(Error)'}
           </div>
-          <div className="tool-call-input">
+          <div className="font-mono text-xs text-muted-foreground mt-1">
             {resultText.slice(0, 500)}
             {resultText.length > 500 && '...'}
           </div>
@@ -250,223 +146,107 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ pair, onClose }) => {
 
   const { request, response } = pair;
   const systemPromptText = extractSystemPromptText(request.system);
-  const agent = getAgentType(request.system);
+  const agentLabel = getAgentLabel(request.system);
   const toolUses = response?.content.filter((b): b is ToolUseContent => b.type === 'tool_use') || [];
 
+  const detailTabs = [
+    { id: 'conversation' as const, label: 'Conversation' },
+    { id: 'system' as const, label: `System (${(systemPromptText.length / 1000).toFixed(1)}K)` },
+    { id: 'tools' as const, label: `Tools (${toolUses.length})` },
+    { id: 'raw' as const, label: 'Raw' },
+  ];
+
   return (
-    <div className="detail-panel">
-      <style>{markdownStyles}</style>
-      <div className="detail-header">
+    <div className="fixed right-0 top-0 w-1/2 h-screen bg-background border-l border-border z-50 flex flex-col animate-in slide-in-from-right duration-200">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 'bold',
-              color: '#00fff5',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-            }}>
-              API Call Details
-            </span>
-            <span style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.65rem',
-              padding: '0.15rem 0.5rem',
-              borderRadius: '4px',
-              background: `${agent.color}20`,
-              border: `1px solid ${agent.color}50`,
-              color: agent.color,
-              fontWeight: 'bold',
-              boxShadow: agent.glow,
-            }}>
-              {agent.label}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">API Call Details</span>
+            <span className="text-xs font-medium px-2 py-0.5 rounded bg-secondary text-muted-foreground">
+              {agentLabel}
             </span>
           </div>
-          <div style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: '0.7rem',
-            color: '#555',
-            marginTop: '0.25rem',
-          }}>
+          <div className="text-xs text-muted-foreground font-mono mt-0.5">
             {new Date(request.timestamp).toLocaleString()} | {request.model}
           </div>
         </div>
-        <button className="detail-close" onClick={onClose}>×</button>
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-md hover:bg-accent transition-colors cursor-pointer text-muted-foreground hover:text-foreground"
+        >
+          <X size={18} />
+        </button>
       </div>
 
-      <div style={{
-        padding: '0.5rem 1rem',
-        borderBottom: '1px solid #2a2a35',
-        background: 'rgba(0, 0, 0, 0.2)',
-      }}>
-        <div className="tabs">
-          <button
-            className={`tab ${tab === 'conversation' ? 'active' : ''}`}
-            onClick={() => setTab('conversation')}
-          >
-            Conversation
-          </button>
-          <button
-            className={`tab ${tab === 'system' ? 'active' : ''}`}
-            onClick={() => setTab('system')}
-          >
-            System ({(systemPromptText.length / 1000).toFixed(1)}K)
-          </button>
-          <button
-            className={`tab ${tab === 'tools' ? 'active' : ''}`}
-            onClick={() => setTab('tools')}
-          >
-            Tools ({toolUses.length})
-          </button>
-          <button
-            className={`tab ${tab === 'raw' ? 'active' : ''}`}
-            onClick={() => setTab('raw')}
-          >
-            Raw
-          </button>
-        </div>
+      {/* Tabs */}
+      <div className="border-b border-border px-4">
+        <nav className="flex gap-0">
+          {detailTabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                'px-3 py-2 text-xs font-medium border-b-2 transition-colors cursor-pointer',
+                tab === t.id
+                  ? 'border-foreground text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
       </div>
 
-      <div className="detail-content">
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4">
         {tab === 'conversation' && (
           <>
-            {/* System Prompt Summary */}
+            {/* System prompt collapsible */}
             {systemPromptText && (
-              <div className="detail-section">
-                <div
+              <div className="mb-4">
+                <button
                   onClick={() => setSystemExpanded(!systemExpanded)}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    padding: '0.5rem 0.75rem',
-                    background: 'rgba(0, 0, 0, 0.3)',
-                    borderRadius: '6px',
-                    marginBottom: '0.5rem',
-                    border: '1px solid #2a2a35',
-                    transition: 'all 0.2s ease',
-                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-md bg-secondary/50 border border-border cursor-pointer hover:bg-accent transition-colors"
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '0.65rem',
-                      padding: '0.15rem 0.5rem',
-                      borderRadius: '4px',
-                      background: `${agent.color}20`,
-                      border: `1px solid ${agent.color}50`,
-                      color: agent.color,
-                    }}>
-                      {agent.label}
-                    </span>
-                    <span style={{
-                      fontFamily: 'var(--font-display)',
-                      color: '#888',
-                      fontSize: '0.75rem',
-                    }}>
-                      System Prompt ({(systemPromptText.length / 1000).toFixed(1)}K chars)
-                    </span>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-medium">{agentLabel}</span>
+                    <span className="font-mono">System Prompt ({(systemPromptText.length / 1000).toFixed(1)}K chars)</span>
                   </div>
-                  <span style={{
-                    color: '#555',
-                    transition: 'transform 0.2s ease',
-                    transform: systemExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                  }}>
-                    ▼
-                  </span>
-                </div>
+                  <ChevronDown size={14} className={cn('text-muted-foreground transition-transform', systemExpanded && 'rotate-180')} />
+                </button>
                 {systemExpanded && (
-                  <>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'flex-end',
-                      marginBottom: '0.5rem',
-                    }}>
-                      <div className="tabs" style={{ transform: 'scale(0.85)', transformOrigin: 'right center' }}>
-                        <button
-                          className={`tab ${conversationSystemViewMode === 'preview' ? 'active' : ''}`}
-                          onClick={(e) => { e.stopPropagation(); setConversationSystemViewMode('preview'); }}
-                        >
-                          Preview
-                        </button>
-                        <button
-                          className={`tab ${conversationSystemViewMode === 'raw' ? 'active' : ''}`}
-                          onClick={(e) => { e.stopPropagation(); setConversationSystemViewMode('raw'); }}
-                        >
-                          Raw
-                        </button>
-                      </div>
+                  <div className="mt-2">
+                    <div className="flex justify-end mb-2">
+                      <ViewToggle mode={conversationSystemViewMode} onChange={setConversationSystemViewMode} />
                     </div>
                     {conversationSystemViewMode === 'preview' ? (
-                      <div
-                        className="markdown-preview"
-                        style={{
-                          background: 'rgba(10, 10, 15, 0.8)',
-                          padding: '0.75rem',
-                          borderRadius: '6px',
-                          maxHeight: '300px',
-                          overflowY: 'auto',
-                          marginBottom: '0.5rem',
-                          border: '1px solid #2a2a35',
-                        }}
-                      >
+                      <div className="markdown-preview bg-card p-3 rounded-md border border-border max-h-72 overflow-y-auto">
                         <Markdown>{systemPromptText}</Markdown>
                       </div>
                     ) : (
-                      <div
-                        style={{
-                          background: 'rgba(10, 10, 15, 0.8)',
-                          padding: '0.75rem',
-                          borderRadius: '6px',
-                          maxHeight: '300px',
-                          overflowY: 'auto',
-                          marginBottom: '0.5rem',
-                          border: '1px solid #2a2a35',
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          fontFamily: 'var(--font-display)',
-                          fontSize: '0.7rem',
-                          color: '#888',
-                        }}
-                      >
+                      <div className="bg-card p-3 rounded-md border border-border max-h-72 overflow-y-auto font-mono text-xs text-muted-foreground whitespace-pre-wrap break-words">
                         {systemPromptText}
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             )}
 
             {/* Messages */}
-            <div className="detail-section">
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '0.5rem',
-              }}>
-                <h3 style={{ margin: 0 }}>Messages ({request.messages.length})</h3>
-                <div className="tabs" style={{ transform: 'scale(0.85)', transformOrigin: 'right center' }}>
-                  <button
-                    className={`tab ${messagesViewMode === 'preview' ? 'active' : ''}`}
-                    onClick={() => setMessagesViewMode('preview')}
-                  >
-                    Preview
-                  </button>
-                  <button
-                    className={`tab ${messagesViewMode === 'raw' ? 'active' : ''}`}
-                    onClick={() => setMessagesViewMode('raw')}
-                  >
-                    Raw
-                  </button>
-                </div>
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium">Messages ({request.messages.length})</h3>
+                <ViewToggle mode={messagesViewMode} onChange={setMessagesViewMode} />
               </div>
               {request.messages.map((msg, i) => (
-                <div key={i} className="message">
-                  <div className="message-role" style={{
-                    color: msg.role === 'user' ? '#39ff14' : '#ff00ff',
-                  }}>
+                <div key={i} className="mb-2 p-3 rounded-md border border-border bg-card">
+                  <div className={cn(
+                    'text-xs font-medium uppercase tracking-wide mb-1',
+                    msg.role === 'user' ? 'text-blue-400' : 'text-violet-400'
+                  )}>
                     {msg.role}
                   </div>
                   {formatContent(msg.content, messagesViewMode === 'preview')}
@@ -476,133 +256,32 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ pair, onClose }) => {
 
             {/* Response */}
             {response && (
-              <div className="detail-section">
-                <h3>Response</h3>
-                <div className="message">
-                  <div className="message-role" style={{ color: '#ff00ff' }}>assistant</div>
+              <div className="mb-4">
+                <h3 className="text-sm font-medium mb-2">Response</h3>
+                <div className="p-3 rounded-md border border-border bg-card">
+                  <div className="text-xs font-medium uppercase tracking-wide mb-1 text-violet-400">assistant</div>
                   {formatContent(response.content, messagesViewMode === 'preview')}
                 </div>
-                <div style={{
-                  marginTop: '0.5rem',
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.7rem',
-                  color: '#555',
-                }}>
-                  Stop reason: <span style={{ color: '#00fff5' }}>{response.stop_reason}</span>
+                <div className="mt-2 text-xs text-muted-foreground font-mono">
+                  Stop reason: <span className="text-foreground">{response.stop_reason}</span>
                   {' | '}
-                  Duration: <span style={{ color: '#ffff00' }}>{response.duration_ms}ms</span>
+                  Duration: <span className="text-foreground">{response.duration_ms}ms</span>
                 </div>
               </div>
             )}
 
             {/* Token Usage */}
             {response && (
-              <div className="detail-section">
-                <h3>Token Usage</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                  <div style={{
-                    padding: '0.75rem',
-                    background: 'rgba(0, 255, 245, 0.05)',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(0, 255, 245, 0.2)',
-                  }}>
-                    <div style={{
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '1.25rem',
-                      fontWeight: 'bold',
-                      color: '#00fff5',
-                      textShadow: '0 0 10px rgba(0, 255, 245, 0.5)',
-                    }}>
-                      {response.usage.input_tokens.toLocaleString()}
-                    </div>
-                    <div style={{
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '0.65rem',
-                      color: '#555',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}>
-                      Input Tokens
-                    </div>
-                  </div>
-                  <div style={{
-                    padding: '0.75rem',
-                    background: 'rgba(255, 0, 255, 0.05)',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255, 0, 255, 0.2)',
-                  }}>
-                    <div style={{
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '1.25rem',
-                      fontWeight: 'bold',
-                      color: '#ff00ff',
-                      textShadow: '0 0 10px rgba(255, 0, 255, 0.5)',
-                    }}>
-                      {response.usage.output_tokens.toLocaleString()}
-                    </div>
-                    <div style={{
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '0.65rem',
-                      color: '#555',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}>
-                      Output Tokens
-                    </div>
-                  </div>
+              <div>
+                <h3 className="text-sm font-medium mb-2">Token Usage</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <TokenCard label="Input Tokens" value={response.usage.input_tokens.toLocaleString()} color="text-blue-400" />
+                  <TokenCard label="Output Tokens" value={response.usage.output_tokens.toLocaleString()} color="text-violet-400" />
                   {response.usage.cache_read_input_tokens !== undefined && response.usage.cache_read_input_tokens > 0 && (
-                    <div style={{
-                      padding: '0.75rem',
-                      background: 'rgba(255, 255, 0, 0.05)',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(255, 255, 0, 0.2)',
-                    }}>
-                      <div style={{
-                        fontFamily: 'var(--font-display)',
-                        fontSize: '1.25rem',
-                        fontWeight: 'bold',
-                        color: '#ffff00',
-                        textShadow: '0 0 10px rgba(255, 255, 0, 0.5)',
-                      }}>
-                        {response.usage.cache_read_input_tokens.toLocaleString()}
-                      </div>
-                      <div style={{
-                        fontFamily: 'var(--font-display)',
-                        fontSize: '0.65rem',
-                        color: '#555',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                      }}>
-                        Cache Read
-                      </div>
-                    </div>
+                    <TokenCard label="Cache Read" value={response.usage.cache_read_input_tokens.toLocaleString()} color="text-amber-400" />
                   )}
                   {response.usage.cache_creation_input_tokens !== undefined && response.usage.cache_creation_input_tokens > 0 && (
-                    <div style={{
-                      padding: '0.75rem',
-                      background: 'rgba(57, 255, 20, 0.05)',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(57, 255, 20, 0.2)',
-                    }}>
-                      <div style={{
-                        fontFamily: 'var(--font-display)',
-                        fontSize: '1.25rem',
-                        fontWeight: 'bold',
-                        color: '#39ff14',
-                        textShadow: '0 0 10px rgba(57, 255, 20, 0.5)',
-                      }}>
-                        {response.usage.cache_creation_input_tokens.toLocaleString()}
-                      </div>
-                      <div style={{
-                        fontFamily: 'var(--font-display)',
-                        fontSize: '0.65rem',
-                        color: '#555',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                      }}>
-                        Cache Creation
-                      </div>
-                    </div>
+                    <TokenCard label="Cache Creation" value={response.usage.cache_creation_input_tokens.toLocaleString()} color="text-emerald-400" />
                   )}
                 </div>
               </div>
@@ -611,119 +290,44 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ pair, onClose }) => {
         )}
 
         {tab === 'system' && (
-          <div className="detail-section">
-            <div style={{
-              marginBottom: '1rem',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.7rem',
-                  padding: '0.25rem 0.75rem',
-                  borderRadius: '4px',
-                  background: `${agent.color}20`,
-                  border: `1px solid ${agent.color}50`,
-                  color: agent.color,
-                  fontWeight: 'bold',
-                  boxShadow: agent.glow,
-                }}>
-                  {agent.label}
-                </span>
-                <span style={{
-                  fontFamily: 'var(--font-display)',
-                  color: '#555',
-                  fontSize: '0.8rem',
-                }}>
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="text-xs font-medium px-2 py-0.5 rounded bg-secondary">{agentLabel}</span>
+                <span className="font-mono text-xs">
                   {systemPromptText.split(/\s+/).filter(Boolean).length.toLocaleString()} words / {systemPromptText.length.toLocaleString()} chars
                 </span>
               </div>
-              <div className="tabs">
-                <button
-                  className={`tab ${systemViewMode === 'preview' ? 'active' : ''}`}
-                  onClick={() => setSystemViewMode('preview')}
-                >
-                  Preview
-                </button>
-                <button
-                  className={`tab ${systemViewMode === 'raw' ? 'active' : ''}`}
-                  onClick={() => setSystemViewMode('raw')}
-                >
-                  Raw
-                </button>
-              </div>
+              <ViewToggle mode={systemViewMode} onChange={setSystemViewMode} />
             </div>
             {systemPromptText ? (
               systemViewMode === 'preview' ? (
-                <div
-                  className="markdown-preview"
-                  style={{
-                    background: 'rgba(10, 10, 15, 0.8)',
-                    padding: '1.5rem',
-                    borderRadius: '8px',
-                    maxHeight: 'calc(100vh - 300px)',
-                    overflowY: 'auto',
-                    border: '1px solid #2a2a35',
-                  }}
-                >
+                <div className="markdown-preview bg-card p-6 rounded-lg border border-border max-h-[calc(100vh-300px)] overflow-y-auto">
                   <Markdown>{systemPromptText}</Markdown>
                 </div>
               ) : (
-                <div style={{
-                  background: 'rgba(10, 10, 15, 0.8)',
-                  padding: '1rem',
-                  borderRadius: '8px',
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.75rem',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  maxHeight: 'calc(100vh - 300px)',
-                  overflowY: 'auto',
-                  border: '1px solid #2a2a35',
-                  color: '#888',
-                }}>
+                <div className="bg-card p-4 rounded-lg border border-border font-mono text-xs text-muted-foreground whitespace-pre-wrap break-words max-h-[calc(100vh-300px)] overflow-y-auto">
                   {systemPromptText}
                 </div>
               )
             ) : (
-              <div className="empty">No system prompt in this request</div>
+              <div className="text-center py-8 text-muted-foreground text-sm">No system prompt in this request</div>
             )}
           </div>
         )}
 
         {tab === 'tools' && (
-          <div className="detail-section">
-            <h3>Tool Calls ({toolUses.length})</h3>
+          <div>
+            <h3 className="text-sm font-medium mb-3">Tool Calls ({toolUses.length})</h3>
             {toolUses.length === 0 ? (
-              <div className="empty">No tool calls in this request</div>
+              <div className="text-center py-8 text-muted-foreground text-sm">No tool calls in this request</div>
             ) : (
               toolUses.map((tool, i) => (
-                <div key={i} className="tool-call" style={{ marginBottom: '1rem' }}>
-                  <div className="tool-call-name">{tool.name}</div>
-                  <div style={{ marginTop: '0.5rem' }}>
-                    <div style={{
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '0.65rem',
-                      color: '#555',
-                      marginBottom: '0.25rem',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}>
-                      Input:
-                    </div>
-                    <pre style={{
-                      background: 'rgba(10, 10, 15, 0.8)',
-                      padding: '0.5rem',
-                      borderRadius: '6px',
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '0.7rem',
-                      overflow: 'auto',
-                      maxHeight: '200px',
-                      border: '1px solid #2a2a35',
-                      color: '#888',
-                    }}>
+                <div key={i} className="mb-3 p-3 rounded-md border border-border bg-card border-l-2 border-l-blue-500">
+                  <div className="text-sm font-mono font-medium">{tool.name}</div>
+                  <div className="mt-2">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Input:</div>
+                    <pre className="bg-secondary p-2 rounded text-xs font-mono overflow-auto max-h-48 text-muted-foreground">
                       {JSON.stringify(tool.input, null, 2)}
                     </pre>
                   </div>
@@ -733,22 +337,12 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ pair, onClose }) => {
 
             {request.tools && request.tools.length > 0 && (
               <>
-                <h3 style={{ marginTop: '1rem' }}>Available Tools ({request.tools.length})</h3>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                <h3 className="text-sm font-medium mt-4 mb-2">Available Tools ({request.tools.length})</h3>
+                <div className="flex flex-wrap gap-1">
                   {request.tools.map((tool, i) => (
                     <span
                       key={i}
-                      style={{
-                        fontFamily: 'var(--font-display)',
-                        padding: '0.25rem 0.5rem',
-                        background: 'rgba(0, 255, 245, 0.1)',
-                        border: '1px solid rgba(0, 255, 245, 0.2)',
-                        borderRadius: '4px',
-                        fontSize: '0.7rem',
-                        color: '#00fff5',
-                        transition: 'all 0.2s ease',
-                        cursor: 'default',
-                      }}
+                      className="font-mono text-xs px-2 py-0.5 rounded bg-secondary text-muted-foreground"
                       title={tool.description}
                     >
                       {tool.name}
@@ -761,13 +355,13 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ pair, onClose }) => {
         )}
 
         {tab === 'raw' && (
-          <div className="detail-section">
-            <h3>Raw Request</h3>
+          <div>
+            <h3 className="text-sm font-medium mb-3">Raw Request</h3>
             <JsonViewer data={request} defaultExpandLevel={1} />
 
             {response && (
               <>
-                <h3 style={{ marginTop: '1rem' }}>Raw Response</h3>
+                <h3 className="text-sm font-medium mt-4 mb-3">Raw Response</h3>
                 <JsonViewer data={response} defaultExpandLevel={1} />
               </>
             )}
